@@ -1,0 +1,44 @@
+<html>
+  <head>
+    <title>Uplink Bandwidth Stats</title>
+  </head>
+  <body>
+    <h1>Uplink Bandwidth Stats</h1>
+    <form>
+      <select id="stats-select">
+	<option value="hourly">Hourly</option>
+        <option value="daily">Daily</option>
+        <option value="summary">Summary</option>
+        <option value="monthly">Monthly</option>
+        <option value="top10">Top 10 Days</option>
+      </select>
+      <input type="button" value="OK" onclick="showStats()">
+    </form>
+    <div id="stats-image"></div>
+
+    <script>
+      function showStats() {
+        var select = document.getElementById("stats-select");
+        var option = select.options[select.selectedIndex].value;
+        var image = document.getElementById("stats-image");
+        switch (option) {
+          case "hourly":
+            image.innerHTML = "<img src='hourly.jpg'>";
+            break;
+	  case "daily":
+            image.innerHTML = "<img src='daily.jpg'>";
+            break;
+          case "summary":
+            image.innerHTML = "<img src='summary.jpg'>";
+            break;
+          case "monthly":
+            image.innerHTML = "<img src='monthly.jpg'>";
+            break;
+          case "top10":
+            image.innerHTML = "<img src='top10.jpg'>";
+            break;
+        }
+      }
+    </script>
+  </body>
+</html>
