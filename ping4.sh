@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Your bot token and chat ID
-BOT_TOKEN="YOUR_BOT_TOKEN"
-CHAT_ID="YOUR_CHAT_ID"
+BOT_TOKEN="7076683762:AAHVFQFxTPmCLN2d4rLdaSC3dzQQn8EB47A"
+CHAT_ID="1002149806561"
 
 # The IP address to monitor
 IP_ADDRESS="10.1.1.2"
