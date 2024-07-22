@@ -3,13 +3,13 @@ import time
 import telegram
 
 # Telegram bot API token
-TOKEN = 'YOUR_BOT_API_TOKEN'
+TOKEN = '7076683762:AAHVFQFxTPmCLN2d4rLdaSC3dzQQn8EB47A'
 
 # Telegram group chat ID
-CHAT_ID = 'YOUR_CHAT_ID'
+CHAT_ID = '1002149806561'
 
 # VM IP addresses
-VM_IPS = ['10.0.0.10', '20.0.0.20']
+VM_IPS = ['14.142.183.225', '117.250.113.138']
 
 def check_reachability(ip):
     response = os.system("ping -c 1 " + ip)
