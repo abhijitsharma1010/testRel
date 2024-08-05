@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# Set variables
+IP="10.2.2.1"
+BOT_TOKEN="7076683762:AAHVFQFxTPmCLN2d4rLdaSC3dzQQn8EB47A"
+CHAT_ID="-1002149806561"
+MESSAGE_DOWN="Ping to $IP failed!"
+MESSAGE_UP="Ping to $IP restored!"
+CACHE_FILE="/tmp/ping_status_cache"
+
+# Ping the IP address
+ping -c 1 $IP > /dev/null 2>&1
+
+# Check the exit status of the ping command
+if [ $? -ne 0 ]; then
+  # Check if the ping was previously down
+  if [ ! -f "$CACHE_FILE" ] || [ "$(cat "$CACHE_FILE")" != "down" ]; then
+    # Send Telegram message
+    curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" -d chat_id=$CHAT_ID -d text="$MESSAGE_DOWN" > /dev/null 2>&1
+    # Update cache file
+    echo "down" > "$CACHE_FILE"
+  else
+    # Check if 1 hour has passed since the last message
+    if [ "$(find "$CACHE_FILE" -mmin +60)" ]; then
+      # Send Telegram message
+      curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" -d chat_id=$CHAT_ID -d text="$MESSAGE_DOWN" > /dev/null 2>&1
+      # Update cache file timestamp
+      touch "$CACHE_FILE"
+    fi
+  fi
+else
+  # Check if the ping was previously down
+  if [ -f "$CACHE_FILE" ] && [ "$(cat "$CACHE_FILE")" == "down" ]; then
+    # Send Telegram message
+    curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" -d chat_id=$CHAT_ID -d text="$MESSAGE_UP" > /dev/null 2>&1
+    # Remove cache file
+    rm "$CACHE_FILE"
+  fi
+fi
