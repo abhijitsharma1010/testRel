@@ -1,0 +1,97 @@
+#!/bin/bash
+
+# Source the config files
+source ./config_chat_id
+source ./config_bot_token
+
+# Set other variables
+IP="10.2.2.1"
+MESSAGE_DOWN="Ping to $IP failed!"
+MESSAGE_UP="Ping to $IP restored!"
+CACHE_FILE="/tmp/ping_status_cache"
+DOWNTIME_START_FILE="/tmp/ping_downtime_start"
+MONTHLY_REPORT_FILE="/tmp/monthly_downtime_report"
+CURRENT_MONTH=$(date +%Y-%m)
+PREVIOUS_MONTH=$(date -d "$(date +%Y-%m-01) -1 month" +%Y-%m)
+REPORT_SENT_FLAG="/tmp/report_sent_flag"
+
+# Ping the IP address
+ping -c 1 $IP > /dev/null 2>&1
+
+# Function to send a Telegram message
+send_telegram_message() {
+    local message="$1"
+    curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" -d chat_id=$CHAT_ID -d text="$message" > /dev/null 2>&1
+}
+
+# Function to reset the monthly report
+reset_monthly_report() {
+    echo "0" > "$MONTHLY_REPORT_FILE"
+    rm -f "$REPORT_SENT_FLAG"
+}
+
+# Check if the report for the previous month has been sent
+if [ ! -f "$REPORT_SENT_FLAG" ] && [ "$CURRENT_MONTH" != "$(date -r "$MONTHLY_REPORT_FILE" +%Y-%m)" ]; then
+    # Send the monthly report
+    TOTAL_DOWNTIME=$(cat "$MONTHLY_REPORT_FILE")
+    TOTAL_DOWNTIME_HOURS=$((TOTAL_DOWNTIME / 3600))
+    TOTAL_DOWNTIME_MINUTES=$(( (TOTAL_DOWNTIME % 3600) / 60 ))
+    TOTAL_DOWNTIME_SECONDS=$((TOTAL_DOWNTIME % 60))
+    REPORT_MESSAGE="Monthly Downtime Report for $PREVIOUS_MONTH: Total downtime: ${TOTAL_DOWNTIME_HOURS}h ${TOTAL_DOWNTIME_MINUTES}m ${TOTAL_DOWNTIME_SECONDS}s"
+    send_telegram_message "$REPORT_MESSAGE"
+
+    # Reset the monthly report for the new month
+    reset_monthly_report
+
+    # Mark the report as sent
+    touch "$REPORT_SENT_FLAG"
+fi
+
+# Check the exit status of the ping command
+if [ $? -ne 0 ]; then
+    # Check if the ping was previously down
+    if [ ! -f "$CACHE_FILE" ] || [ "$(cat "$CACHE_FILE")" != "down" ]; then
+        # Record the downtime start time
+        echo "$(date +%s)" > "$DOWNTIME_START_FILE"
+        # Send Telegram message
+        send_telegram_message "$MESSAGE_DOWN"
+        # Update cache file
+        echo "down" > "$CACHE_FILE"
+    else
+        # Check if 1 hour has passed since the last message
+        if [ "$(find "$CACHE_FILE" -mmin +60)" ]; then
+            # Send Telegram message
+            send_telegram_message "$MESSAGE_DOWN"
+            # Update cache file timestamp
+            touch "$CACHE_FILE"
+        fi
+    fi
+else
+    # Check if the ping was previously down
+    if [ -f "$CACHE_FILE" ] && [ "$(cat "$CACHE_FILE")" == "down" ]; then
+        # Calculate the downtime duration
+        DOWNTIME_START=$(cat "$DOWNTIME_START_FILE")
+        DOWNTIME_END=$(date +%s)
+        DOWNTIME_DURATION=$((DOWNTIME_END - DOWNTIME_START))
+        DOWNTIME_HOURS=$((DOWNTIME_DURATION / 3600))
+        DOWNTIME_MINUTES=$(( (DOWNTIME_DURATION % 3600) / 60 ))
+        DOWNTIME_SECONDS=$((DOWNTIME_DURATION % 60))
+        
+        # Accumulate the downtime in the monthly report
+        if [ -f "$MONTHLY_REPORT_FILE" ]; then
+            PREVIOUS_TOTAL_DOWNTIME=$(cat "$MONTHLY_REPORT_FILE")
+            TOTAL_DOWNTIME=$((PREVIOUS_TOTAL_DOWNTIME + DOWNTIME_DURATION))
+        else
+            TOTAL_DOWNTIME=$DOWNTIME_DURATION
+        fi
+        echo "$TOTAL_DOWNTIME" > "$MONTHLY_REPORT_FILE"
+        
+        # Send Telegram message with downtime duration
+        MESSAGE_UP_WITH_DURATION="Ping to $IP restored! Downtime duration: ${DOWNTIME_HOURS}h ${DOWNTIME_MINUTES}m ${DOWNTIME_SECONDS}s"
+        send_telegram_message "$MESSAGE_UP_WITH_DURATION"
+        
+        # Remove cache files
+        rm "$CACHE_FILE"
+        rm "$DOWNTIME_START_FILE"
+    fi
+fi
