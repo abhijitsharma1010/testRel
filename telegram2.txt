@@ -1,18 +1,23 @@
 #!/bin/bash
 
+# Current working directory
+current_dir=$(dirname "$0")
+cd $current_dir
+
 # Source the config files
-source config_chat_id
-source config_bot_token
+source ./config_chat_id
+source ./config_bot_token
 
 # Set other variables
+DATE="$(date +%d/%m/%Y__%H:%M)"
 IP="10.2.2.1"
-MESSAGE_DOWN="Ping to $IP failed!"
-MESSAGE_UP="Ping to $IP restored!"
+MESSAGE_DOWN="Ping to $IP failed! on $DATE "
+MESSAGE_UP="Ping to $IP restored! on $DATE "
 CACHE_FILE="/tmp/ping_status_cache_$IP"
 DOWNTIME_START_FILE="/tmp/ping_downtime_start_$IP"
 
 # Ping the IP address
-ping -c 1 $IP > /dev/null 2>&1
+ping -c 2 $IP > /dev/null 2>&1
 
 # Check the exit status of the ping command
 if [ $? -ne 0 ]; then
