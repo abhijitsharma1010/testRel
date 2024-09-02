@@ -1,0 +1,65 @@
+#!/bin/bash
+
+# Current working directory
+current_dir=$(dirname "$0")
+cd $current_dir
+
+# Source the config files
+source ./config_chat_id
+source ./config_bot_token
+
+# Set other variables
+DATE="$(date +%d/%m/%Y__%H:%M)"
+IP="10.2.2.1"
+MESSAGE_DOWN="Ping to $IP failed! on $DATE "
+MESSAGE_UP="Ping to $IP restored! on $DATE "
+CACHE_FILE="/tmp/ping_status_cache_$IP"
+DOWNTIME_START_FILE="/tmp/ping_downtime_start_$IP"
+LOG_FILE="ping_log_$(date +%Y-%m-%d).log"
+
+# Ping the IP address
+ping -c 2 $IP > /dev/null 2>&1
+
+# Check the exit status of the ping command
+if [ $? -ne 0 ]; then
+  # Check if the ping was previously down
+  if [ ! -f "$CACHE_FILE" ] || [ "$(cat "$CACHE_FILE")" != "down" ]; then
+    # Record the downtime start time
+    echo "$(date +%s)" > "$DOWNTIME_START_FILE"
+    # Send Telegram message
+    curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" -d chat_id=$CHAT_ID -d text="$MESSAGE_DOWN" > /dev/null 2>&1
+    # Update cache file
+    echo "down" > "$CACHE_FILE"
+    # Log the event
+    echo "$DATE - Ping to $IP failed!" >> $LOG_FILE
+  else
+    # Check if 1 hour has passed since the last message
+    if [ "$(find "$CACHE_FILE" -mmin +60)" ]; then
+      # Send Telegram message
+      curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" -d chat_id=$CHAT_ID -d text="$MESSAGE_DOWN" > /dev/null 2>&1
+      # Update cache file timestamp
+      touch "$CACHE_FILE"
+      # Log the event
+      echo "$DATE - Ping to $IP still down!" >> $LOG_FILE
+    fi
+  fi
+else
+  # Check if the ping was previously down
+  if [ -f "$CACHE_FILE" ] && [ "$(cat "$CACHE_FILE")" == "down" ]; then
+    # Calculate the downtime duration
+    DOWNTIME_START=$(cat "$DOWNTIME_START_FILE")
+    DOWNTIME_END=$(date +%s)
+    DOWNTIME_DURATION=$((DOWNTIME_END - DOWNTIME_START))
+    DOWNTIME_HOURS=$((DOWNTIME_DURATION / 3600))
+    DOWNTIME_MINUTES=$(( (DOWNTIME_DURATION % 3600) / 60 ))
+    DOWNTIME_SECONDS=$((DOWNTIME_DURATION % 60))
+    # Send Telegram message with downtime duration
+    MESSAGE_UP_WITH_DURATION="Ping to $IP restored! on $DATE Downtime duration: ${DOWNTIME_HOURS}h ${DOWNTIME_MINUTES}m ${DOWNTIME_SECONDS}s"
+    curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" -d chat_id=$CHAT_ID -d text="$MESSAGE_UP_WITH_DURATION" > /dev/null 2>&1
+    # Remove cache files
+    rm "$CACHE_FILE"
+    rm "$DOWNTIME_START_FILE"
+    # Log the event
+    echo "$DATE - Ping to $IP restored! Downtime duration: ${DOWNTIME_HOURS}h ${DOWNTIME_MINUTES}m ${DOWNTIME_SECONDS}s" >> $LOG_FILE
+  fi
+fi
