@@ -7,12 +7,18 @@ stopped_after_date=$(date -d "15 days ago" +%Y-%m-%d)
 stopped_before_date=$(date +%Y-%m-%d)
 date=$(date +%Y-%m-%d)
 
+# Output file
+output_file="output.txt"
+
+# Clear the output file
+> "$output_file"
+
 # Get the list of Indian IPv4 probes
 ripe-atlas probe-search --country IN --status 1 --limit 500 --ids-only > list.of.indian.ipv4.probes
 
 # Loop through each IP address
 for ip_address in "${ip_addresses[@]}"; do
-    echo "Processing IP address: $ip_address"
+    echo "Processing IP address: $ip_address" | tee -a "$output_file"
 
     # Initialize the file to store all measurement IDs
     > all.measurement.ids.$ip_address
@@ -32,7 +38,7 @@ for ip_address in "${ip_addresses[@]}"; do
     # Process the measurements
     > ping.$ip_address.from.indian.probes
     for i in $(cat all.measurement.ids.$ip_address); do
-        echo $i
+        echo $i | tee -a "$output_file"
         ripe-atlas report $i --probes list.of.indian.ipv4.probes >> ping.$ip_address.from.indian.probes
     done
 
@@ -58,5 +64,5 @@ for ip_address in "${ip_addresses[@]}"; do
         avg=$(echo "$sum / $numbers" | bc -l)
     fi
 
-    printf "Avg ping time for $ip_address is :%.2f\n" $avg
+    printf "Avg ping time for $ip_address is :%.2f\n" $avg | tee -a "$output_file"
 done
