@@ -12,6 +12,7 @@ date=$(date +%Y-%m-%d)
 # Initialize the output file
 ##> output.txt
 echo  >> output.txt
+echo "Date: $(date +%d-%m-%Y)" >> output.txt
 
 # Loop through each IP address
 for ip_address in "${ip_addresses[@]}"; do
