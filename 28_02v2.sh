@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Input and output file paths
-input_file="input.txt"
+input_file="script_output.txt"
 output_file="output.txt"
 
 # Clear the output file if it exists
