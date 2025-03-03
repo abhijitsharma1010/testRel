@@ -1,39 +1,40 @@
 #!/bin/bash
 
-# Input file
-input_file="script_output.txt"
-
-# Output file
+# Define the input file
+input_file="/script_output.txt"
 output_file="output.txt"
 
-# Clear the output file if it exists
+# Initialize an empty output file
 > "$output_file"
 
 # Read the input file line by line
 while IFS= read -r line; do
-    # Check if the line contains a Probe ID
-    if [[ $line =~ ^Probe\ \#([0-9]+) ]]; then
-        probe_id=${BASH_REMATCH[1]}
-        # Initialize query variable
-        query=""
+    # Check if the line contains "Probe #"
+    if [[ $line =~ Probe\ \#([0-9]+) ]]; then
+        # Extract the Probe ID
+        probe_id="${BASH_REMATCH[1]}"
+        
         # Read the next lines to find the DNS query
         while IFS= read -r next_line; do
-            if [[ $next_line =~ ^\ *;\ QUESTION\ SECTION: ]]; then
-                # Extract the query from the next line
-                if IFS= read -r query_line; then
-                    if [[ $query_line =~ ^\ *;([^;]+) ]]; then
-                        # Extract the query and remove the '. IN A' part
-                        query=$(echo "${BASH_REMATCH[1]}" | sed 's/\.\s*IN\s*A\s*$//g' | xargs)
-                        break
-                    fi
-                fi
+            # Check if the line contains "QUESTION SECTION"
+            if [[ $next_line == *"QUESTION SECTION:"* ]]; then
+                # Read the next line to get the actual query
+                read -r query_line
+                # Extract the query
+                query=$(echo "$query_line" | awk '{print $2}')
+                
+                # Write the formatted output to the output file
+                echo "Probe ID: $probe_id, Query: $query" >> "$output_file"
+                # Write the probe ID line to the output file
+                echo "$line" >> "$output_file"
+                break
             fi
-        done < <(tail -n +$(($(grep -n "$line" "$input_file" | cut -d: -f1) + 1) "$input_file")
-        # Write the Probe ID and Query to the output file
-        echo "Probe ID: $probe_id, Query: $query" >> "$output_file"
+        done
+    else
+        # Write the line to the output file if it's not a probe ID
+        echo "$line" >> "$output_file"
     fi
-    # Write the original line to the output file
-    echo "$line" >> "$output_file"
 done < "$input_file"
 
-echo "Output written to $output_file"
+# Display the output file
+cat "$output_file"
