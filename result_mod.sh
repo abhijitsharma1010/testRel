@@ -28,7 +28,7 @@ while IFS= read -r line; do
                     fi
                 fi
             fi
-        done
+        done < <(tail -n +$(($(grep -n "$line" "$input_file" | cut -d: -f1) + 1) "$input_file")
         # Write the Probe ID and Query to the output file
         echo "Probe ID: $probe_id, Query: $query" >> "$output_file"
     fi
