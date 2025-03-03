@@ -1,40 +1,34 @@
 #!/bin/bash
 
-# Define the input file
-input_file="/script_output.txt"
-output_file="output.txt"
+# Input file
+input_file="script_output.txt"
 
-# Initialize an empty output file
-> "$output_file"
+# Output file
+output_file="output_mod.txt"
 
 # Read the input file line by line
 while IFS= read -r line; do
-    # Check if the line contains "Probe #"
-    if [[ $line =~ Probe\ \#([0-9]+) ]]; then
-        # Extract the Probe ID
-        probe_id="${BASH_REMATCH[1]}"
+    # Check if the line starts with "Probe #"
+    if [[ $line == "Probe #"* ]]; then
+        # Extract the probe ID
+        probe_id=$(echo "$line" | awk '{print $2}' | tr -d '#')
         
         # Read the next lines to find the DNS query
         while IFS= read -r next_line; do
-            # Check if the line contains "QUESTION SECTION"
+            # Check if the line contains the DNS query
             if [[ $next_line == *"QUESTION SECTION:"* ]]; then
-                # Read the next line to get the actual query
-                read -r query_line
-                # Extract the query
-                query=$(echo "$query_line" | awk '{print $2}')
+                # Extract the DNS query
+                query=$(echo "$next_line" | awk '{print $1}' | sed 's/;//g')
                 
-                # Write the formatted output to the output file
+                # Write the Probe ID and Query to the output file
                 echo "Probe ID: $probe_id, Query: $query" >> "$output_file"
-                # Write the probe ID line to the output file
-                echo "$line" >> "$output_file"
                 break
             fi
         done
-    else
-        # Write the line to the output file if it's not a probe ID
-        echo "$line" >> "$output_file"
     fi
+    
+    # Write the original line to the output file
+    echo "$line" >> "$output_file"
 done < "$input_file"
 
-# Display the output file
-cat "$output_file"
+echo "Processing complete. Output saved to $output_file"
