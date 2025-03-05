@@ -3,8 +3,13 @@
 # Read b.txt and store DNS queries and IPs in an associative array
 declare -A b_data
 while IFS= read -r line; do
-    # Split the line into parts using ' ;; ' as the delimiter
-    IFS=' ;; ' read -r dns_query ip1 ip2 ip3 <<< "$line"
+    # Remove leading/trailing whitespace and split the line into parts using ' ;; ' as the delimiter
+    cleaned_line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    IFS=' ;; ' read -r dns_query ip1 ip2 ip3 <<< "$cleaned_line"
+    
+    # Debug: Print the DNS query to ensure it's being read correctly
+    echo "Processing DNS Query: $dns_query"
+
     # Store the IPs in the associative array with the DNS query as the key
     b_data["$dns_query"]="$ip1;;$ip2;;$ip3"
 done < b.txt
@@ -18,7 +23,10 @@ while IFS= read -r line; do
     fi
 
     # Extract DNS_Query from the line
-    dns_query=$(echo "$line" | awk -F';;' '{print $2}')
+    dns_query=$(echo "$line" | awk -F';;' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+    # Debug: Print the DNS query being searched
+    echo "Searching for DNS Query: $dns_query"
 
     # Check if DNS_Query exists in b_data
     if [[ -n "${b_data[$dns_query]}" ]]; then
