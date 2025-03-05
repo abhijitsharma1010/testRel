@@ -2,7 +2,10 @@
 
 # Read b.txt and store DNS queries and IPs in an associative array
 declare -A b_data
-while IFS=' ;; ' read -r dns_query ip1 ip2 ip3; do
+while IFS= read -r line; do
+    # Split the line into parts using ' ;; ' as the delimiter
+    IFS=' ;; ' read -r dns_query ip1 ip2 ip3 <<< "$line"
+    # Store the IPs in the associative array with the DNS query as the key
     b_data["$dns_query"]="$ip1;;$ip2;;$ip3"
 done < b.txt
 
