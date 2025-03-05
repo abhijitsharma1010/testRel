@@ -1,0 +1,14 @@
+awk '{
+    query = $1;
+    ip = $2;
+    if (query in queries) {
+        queries[query] = queries[query] ";;" ip;
+    } else {
+        queries[query] = query ";;" ip;
+    }
+}
+END {
+    for (q in queries) {
+        print queries[q];
+    }
+}' temp.txt > queries_with_ips.log
