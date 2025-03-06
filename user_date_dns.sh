@@ -1,97 +1,81 @@
 #!/bin/bash
 
-# List of IP addresses to process
-ip_addresses=("1.10.10.10" "1.1.1.1" "8.8.8.8" "9.9.9.9")
+dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$dir"
 
-# Ask the user for the starting date
-read -p "Enter the starting date (YYYY-MM-DD) for the 15-day period: " user_start_date
+# List of IP addresses
+ip_addresses=("2409::1" "2606:4700:4700::1111" "2001:4860:4860::8888" "2620:fe::9")
+#ip_addresses=("1.10.10.10" "8.8.8.8" "1.1.1.1" "9.9.9.9")
 
-# Validate the user input date format
-if ! date -d "$user_start_date" > /dev/null 2>&1; then
-    echo "Invalid date format. Please use YYYY-MM-DD."
+# Ask user for start and end dates
+read -p "Enter the start date (YYYY-MM-DD): " start_date
+read -p "Enter the end date (YYYY-MM-DD): " end_date
+
+# Validate the date format
+if ! date -d "$start_date" > /dev/null 2>&1; then
+    echo "Invalid start date format. Please use YYYY-MM-DD."
     exit 1
 fi
 
-# Calculate the date range
-stopped_after_date=$(date -d "$user_start_date" +%Y-%m-%d)
-stopped_before_date=$(date -d "$stopped_after_date + 15 days" +%Y-%m-%d)
-date=$(date +%Y-%m-%d)
+if ! date -d "$end_date" > /dev/null 2>&1; then
+    echo "Invalid end date format. Please use YYYY-MM-DD."
+    exit 1
+fi
 
 # Output file
 output_file="output.txt"
 
-# Clear the output file
-> "$output_file"
+echo " " >> "$output_file"
+echo "Date: $(date +%d-%m-%Y)" >> "$output_file"
 
-# Write the start and end dates to the output file
-echo "Start Date: $stopped_after_date" >> "$output_file"
-echo "End Date: $stopped_before_date" >> "$output_file"
-echo "" >> "$output_file"  # Add a blank line for readability
-
-# Display progress
-echo "Script started. Processing data from $stopped_after_date to $stopped_before_date."
-
-# Get the list of Indian IPv6 probes
-echo "Fetching list of Indian IPv6 probes..."
-ripe-atlas probe-search --country IN --status 1 --limit 500 --ids-only --ip-version 6 > list.of.indian.ipv6.probes
-echo "List of Indian IPv6 probes fetched and saved to list.of.indian.ipv6.probes."
+# Initialize the output file
+##> output.txt
+##echo  >> output.txt
 
 # Loop through each IP address
 for ip_address in "${ip_addresses[@]}"; do
-    echo "Processing IP address: $ip_address"
+    echo "Processing IP: $ip_address"
+    
+    # Get the list of Indian IPv4 probes
+    /root/.local/bin/ripe-atlas probe-search --status 1 --country IN --limit 500 --max-per-aggregation 1 --ids-only > list.of.indian.ipv4.probes
 
-    # Initialize the file to store all measurement IDs
-    > all.measurement.ids.$ip_address
+    # Initialize an empty file to store all measurement IDs
+    > all_measurement_ids.$date.$ip_address
 
     # Loop through the date range in 2-day increments
-    current_date=$(date -d "$stopped_after_date" +%Y-%m-%d)
-    while [[ "$current_date" < "$stopped_before_date" ]]; do
+    current_date=$(date -d "$start_date" +%Y-%m-%d)
+    while [[ "$current_date" < "$end_date" ]]; do
         next_date=$(date -d "$current_date + 2 days" +%Y-%m-%d)
         
-        # Display progress for the current date range
-        echo "Searching for DNS measurements between $current_date and $next_date..."
+        # Ensure the next_date does not exceed the end_date
+        if [[ "$next_date" > "$end_date" ]]; then
+            next_date="$end_date"
+        fi
         
-        # Search for DNS measurements in the current 2-day window
-        ripe-atlas measurement-search --type dns --af 6 --search $ip_address --started-after $current_date --started-before $next_date --ids-only --limit 1000 >> all.measurement.ids.$ip_address
+        echo "Searching measurements between $current_date and $next_date"
+        
+        # Search for measurements in the current 2-day window
+        /root/.local/bin/ripe-atlas measurement-search --type dns --af 6 --search $ip_address --ids-only --limit 1000 --started-after $current_date --started-before $next_date >> all_measurement_ids.$date.$ip_address
         
         # Move to the next 2-day window
-        current_date=$next_date
+        current_date="$next_date"
     done
 
-    echo "DNS measurements for IP $ip_address collected."
-
-    # Process the measurements
-    echo "Processing DNS measurements for IP $ip_address..."
-    > dns.$ip_address.from.indian.probes
-    for i in $(cat all.measurement.ids.$ip_address); do
-        ripe-atlas report $i --probes list.of.indian.ipv6.probes >> dns.$ip_address.from.indian.probes
+    # Process the measurements using the list of Indian probes
+    > dns.$date.$ip_address.from.indian.probes
+    for i in $(cat all_measurement_ids.$date.$ip_address); do
+        echo $i
+        /root/.local/bin/ripe-atlas report $i --probes list.of.indian.ipv4.probes >> dns.$date.$ip_address.from.indian.probes
     done
 
-    echo "DNS measurements processed for IP $ip_address."
+    # Extract and calculate the average DNS query time
+    grep "Query time" dns.$date.$ip_address.from.indian.probes > query_time_$date.$ip_address
 
-    # Calculate the average response time
-    awk '/^query_time/ {print $2}' dns.$ip_address.from.indian.probes > time.test
-    awk -i inplace '{gsub("/", " "); print}' time.test
-    awk '{print $1}' time.test > time.new.$ip_address
+    > new
+    awk '{print $4}' query_time_$date.$ip_address > new
+    avg=$(awk '{sum += $1; count++} END {if (count > 0) print sum/count; else print "No data"}' new)
 
-    sum=0
-    numbers=0
-    for j in $(awk '{print $1}' time.new.$ip_address); do
-        k=${j//[!0-9.]/}
-        sum=$(echo $sum $k | awk '{print $1+$2}')
-        ((numbers+=1))
-    done
-
-    # Calculate the average response time
-    if ((numbers == 0)); then
-        avg=0
-    else
-        avg=$(echo "$sum / $numbers" | bc -l)
-    fi
-
-    # Save the average response time to the output file
-    printf "Avg DNS response time for $ip_address is :%.2f\n" $avg >> "$output_file"
-    echo "Average DNS response time for $ip_address calculated: $avg ms"
+    # Append the date and DNS query time to output.txt
+    printf "Avg DNS query time for $ip_address is: %.2f\n" $avg >> "$output_file"
+    printf "Avg DNS query time for $ip_address is: %.2f\n" $avg
 done
-
-echo "Script completed. Results saved to $output_file."
