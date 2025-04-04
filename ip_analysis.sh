@@ -15,15 +15,18 @@ is_private_ipv4() {
     [[ $ip =~ ^100\.([6-9][0-9]|1[0-1][0-9]|12[0-7])\..* ]]
 }
 
-# Improved IP extraction that better handles IPv6
+# Extract all IPs with more robust pattern matching
 awk '{
     for (i=1; i<=NF; i++) {
         if ($i ~ /^SERVER[0-9]+:/) {
             ip = $(i+1)
-            # Remove any trailing comma or other characters after IP
-            gsub(/[^0-9a-fA-F:.]/, "", ip)
-            # Match either IPv4 or IPv6
-            if (ip ~ /^([0-9]{1,3}\.){3}[0-9]{1,3}$/ || ip ~ /^[0-9a-fA-F:]+$/ && ip ~ /:/) {
+            # Remove any trailing non-IP characters (more aggressive cleaning)
+            gsub(/[^0-9a-fA-F:.].*$/, "", ip)
+            # Match IPv4 or IPv6 (more inclusive patterns)
+            if (ip ~ /^([0-9]{1,3}\.){3}[0-9]{1,3}$/ || 
+                ip ~ /^[0-9a-fA-F]{1,4}(:[0-9a-fA-F]{1,4}){1,7}$/ ||
+                ip ~ /^([0-9a-fA-F]{1,4}:){1,7}:([0-9a-fA-F]{1,4})?$/ ||
+                ip ~ /^::([0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}$/) {
                 print ip
             }
         }
@@ -36,26 +39,31 @@ echo "Generated on $(date)" >> "$output_file"
 echo "======================================" >> "$output_file"
 
 echo -e "\nPUBLIC IPv4 ADDRESSES (Count | Address):" >> "$output_file"
-grep -E '([0-9]{1,3}\.){3}[0-9]{1,3}$' temp_ips.txt | while read count ip; do
+grep -E '^ *[0-9]+ ([0-9]{1,3}\.){3}[0-9]{1,3}$' temp_ips.txt | while read count ip; do
     if ! is_private_ipv4 "$ip"; then
         printf "%8s %s\n" "$count" "$ip" >> "$output_file"
     fi
 done
 
 echo -e "\nPRIVATE IPv4 ADDRESSES (Count | Address):" >> "$output_file"
-grep -E '([0-9]{1,3}\.){3}[0-9]{1,3}$' temp_ips.txt | while read count ip; do
+grep -E '^ *[0-9]+ ([0-9]{1,3}\.){3}[0-9]{1,3}$' temp_ips.txt | while read count ip; do
     if is_private_ipv4 "$ip"; then
         printf "%8s %s\n" "$count" "$ip" >> "$output_file"
     fi
 done
 
 echo -e "\nIPv6 ADDRESSES (Count | Address):" >> "$output_file"
-grep -E '^[0-9a-fA-F:]+$' temp_ips.txt | while read count ip; do
+grep -E '^ *[0-9]+ [0-9a-fA-F:]+$' temp_ips.txt | grep -vE '([0-9]{1,3}\.){3}[0-9]{1,3}' | while read count ip; do
     printf "%8s %s\n" "$count" "$ip" >> "$output_file"
 done
+
+# Debug information
+echo -e "\nDEBUG INFORMATION:" >> "$output_file"
+echo "Total lines processed in temp file: $(wc -l < temp_ips.txt)" >> "$output_file"
+echo "IPv4 addresses found: $(grep -Ec '([0-9]{1,3}\.){3}[0-9]{1,3}' temp_ips.txt)" >> "$output_file"
+echo "IPv6 addresses found: $(grep -Ec '^ *[0-9]+ [0-9a-fA-F:]+$' temp_ips.txt | grep -vcE '([0-9]{1,3}\.){3}[0-9]{1,3}')" >> "$output_file"
 
 # Clean up
 rm temp_ips.txt
 
 echo "IP analysis complete. Results saved to $output_file"
-echo "Total IPv6 addresses found: $(grep -cE '^[0-9a-fA-F:]+$' "$output_file")"
