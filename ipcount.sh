@@ -1,26 +1,20 @@
 #!/bin/bash
 
 input_file="output1.txt"
-output_file="unique_servers.txt"
+output_file="unique_ips.txt"
 
-# Extract all server IPs (SERVER1, SERVER2, SERVER3) and count occurrences
+# Extract all IPs (IPv4 and IPv6) from SERVER fields, count occurrences, and sort by count
 awk '{
-    for(i=1; i<=NF; i++) {
-        if ($i ~ /^SERVER[123]:/) {
-            split($i, a, ":")
-            ip = a[2]
-            if (ip != "") {
-                ips[ip]++
+    for (i=1; i<=NF; i++) {
+        if ($i ~ /^SERVER[0-9]+:/) {
+            ip = $(i+1)
+            # Remove any trailing comma or other characters after IP
+            gsub(/[^0-9a-fA-F:.]/, "", ip)
+            if (ip ~ /^([0-9]{1,3}\.){3}[0-9]{1,3}$/ || ip ~ /^[0-9a-fA-F:]+$/) {
+                print ip
             }
         }
     }
-} 
-END {
-    print "Unique Server IPs and their counts:"
-    print "-----------------------------------"
-    for (ip in ips) {
-        printf "%-40s %d\n", ip, ips[ip]
-    }
-}' "$input_file" | sort -k2,2nr > "$output_file"
+}' "$input_file" | sort | uniq -c | sort -nr > "$output_file"
 
-echo "Results written to $output_file"
+echo "Unique IP addresses with counts saved to $output_file"
