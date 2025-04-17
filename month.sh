@@ -1,97 +1,77 @@
 #!/bin/bash
 
-# Enhanced IP Analysis Aggregator Script
+# Script to aggregate public IP counts from IP analysis files
+# Author: Claude
+# Date: April 17, 2025
 
-# Check arguments
-if [ "$#" -ne 2 ]; then
-    echo "Usage: $0 <month> <year>"
-    echo "Example: $0 03 2025 (for March 2025)"
-    echo "Note: Month should be two digits (01-12)"
-    exit 1
-fi
+# Directory containing the IP analysis files
+# Default is current directory, but you can change this if needed
+INPUT_DIR="."
 
-month=$(printf "%02d" "$1")  # Ensure two-digit month
-year=$2
+# Output file for aggregated results
+OUTPUT_FILE="aggregated_public_ips.txt"
 
-# Configuration
-output_dir="monthly_summaries"
-output_file="$output_dir/public_ips_${month}-${year}.txt"
-temp_file=$(mktemp)
-processed_files=0
+# Temporary file for processing
+TEMP_FILE=$(mktemp)
 
-# Create output directory with verbose message
-echo "Creating output directory '$output_dir' if needed..."
-mkdir -p "$output_dir" || { echo "Error creating directory!"; exit 1; }
+echo "Aggregating public IP counts from analysis files..."
+echo "IP Count Aggregation Report" > "$OUTPUT_FILE"
+echo "Generated on $(date)" >> "$OUTPUT_FILE"
+echo "======================================" >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
 
-# Header for output file
-header="MONTHLY PUBLIC IP ADDRESS SUMMARY
-======================================
-Month: ${month}-${year}
-Report generated: $(date '+%Y-%m-%d %H:%M:%S %Z')
-Total days processed: [DAYS]
-======================================
-Count   IP Address
-------------------"
-
-# Find and process files
-echo "Searching for files matching pattern: ip_analysis_${month}-[0-9][0-9]-${year}.txt"
-
-for file in ip_analysis_${month}-[0-9][0-9]-${year}.txt; do
+# Process each ip_analysis file in the directory
+for file in "$INPUT_DIR"/ip_analysis_*.txt; do
     if [ -f "$file" ]; then
-        ((processed_files++))
-        echo "  Processing: $file"
+        echo "Processing $file..."
         
-        # Extract and clean public IP data
-        awk '/PUBLIC IPv4 ADDRESSES/,/PRIVATE IPv4 ADDRESSES/' "$file" | 
-        grep -E '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' |
-        sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*|[[:space:]]*/ /' |
-        awk '{if (NF >= 2) print $2, $1}' >> "$temp_file"
+        # Extract the section between "PUBLIC IPv4 ADDRESSES" and the next section
+        sed -n '/PUBLIC IPv4 ADDRESSES/,/PRIVATE IPv4 ADDRESSES/p' "$file" | 
+        # Skip the header lines
+        grep -v "PUBLIC IPv4 ADDRESSES" | grep -v "PRIVATE IPv4 ADDRESSES" |
+        # Extract just the count and IP address, removing leading whitespace
+        sed 's/^[[:space:]]*//' |
+        # Skip empty lines
+        grep -v "^$" >> "$TEMP_FILE"
     fi
 done
 
-# Verify we found files
-if [ "$processed_files" -eq 0 ]; then
-    echo "ERROR: No matching files found for ${month}-${year}"
-    rm "$temp_file"
-    exit 1
-fi
-
-echo "Processed $processed_files files with $(wc -l < "$temp_file") IP records"
-
-# Generate summary
-echo "Generating monthly summary..."
-summary=$(awk '{
-    ip = $1;
-    count = $2;
-    sum[ip] += count;
-    total += $2;
-}
-END {
-    # Sort by count descending, then by IP ascending
-    n = asorti(sum, sorted, "@val_num_desc");
-    for (i = 1; i <= n; i++) {
-        ip = sorted[i];
-        printf "%7d %s\n", sum[ip], ip;
+# Sort and sum the counts for each IP
+echo "PUBLIC IPv4 ADDRESSES (Total Count | Address):" >> "$OUTPUT_FILE"
+awk '
+    {
+        # Extract count and IP address
+        count = $1;
+        ip = $2;
+        
+        # Add count to the total for this IP
+        ips[ip] += count;
     }
-    print "======================================";
-    printf "TOTAL: %d connections from %d unique IPs\n", total, n;
-}' "$temp_file")
-
-# Insert processed days count into header
-header=$(echo "$header" | sed "s/\[DAYS\]/$processed_files/")
-
-# Write final output
-echo "$header" > "$output_file"
-echo "$summary" >> "$output_file"
+    END {
+        # Create an array to store IP and count pairs for sorting
+        for (ip in ips) {
+            pairs[++i] = sprintf("%8d %s", ips[ip], ip);
+        }
+        
+        # Sort in descending order by count
+        for (i = 1; i <= length(pairs); i++) {
+            for (j = i + 1; j <= length(pairs); j++) {
+                if (substr(pairs[i], 1, 8) + 0 < substr(pairs[j], 1, 8) + 0) {
+                    temp = pairs[i];
+                    pairs[i] = pairs[j];
+                    pairs[j] = temp;
+                }
+            }
+        }
+        
+        # Print the sorted results
+        for (i = 1; i <= length(pairs); i++) {
+            print pairs[i];
+        }
+    }
+' "$TEMP_FILE" >> "$OUTPUT_FILE"
 
 # Clean up
-rm "$temp_file"
+rm "$TEMP_FILE"
 
-# Final report
-echo "======================================"
-echo "MONTHLY SUMMARY COMPLETE"
-echo "Output file: $output_file"
-echo "Days processed: $processed_files"
-echo "Total unique public IPs: $(grep -cE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' "$output_file")"
-echo "Total connections: $(awk '/TOTAL:/ {print $2}' "$output_file")"
-echo "======================================"
+echo "Aggregation complete. Results saved to $OUTPUT_FILE"
