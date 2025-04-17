@@ -3,7 +3,7 @@
 # Check if month and year arguments are provided
 if [ "$#" -ne 2 ]; then
     echo "Usage: $0 <month> <year>"
-    echo "Example: $0 05 2025"
+    echo "Example: $0 03 2025 (for March 2025)"
     exit 1
 fi
 
@@ -23,15 +23,24 @@ temp_file=$(mktemp)
 # Process all daily files for the given month and year
 for file in ip_analysis_${month}-[0-9][0-9]-${year}.txt; do
     if [ -f "$file" ]; then
+        echo "Processing file: $file"
         # Extract public IP section, remove headers and footers, and clean the data
         awk '/PUBLIC IPv4 ADDRESSES/,/PRIVATE IPv4 ADDRESSES/' "$file" | 
         grep -E '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' |
-        sed 's/^[[:space:]]*//' | 
+        sed 's/^[[:space:]]*//;s/ *| */ /' | 
         awk '{print $2, $1}' >> "$temp_file"
     fi
 done
 
+# Check if we found any files
+if [ ! -s "$temp_file" ]; then
+    echo "No files found for month ${month}-${year}"
+    rm "$temp_file"
+    exit 1
+fi
+
 # Sum counts by IP address and sort by count (descending)
+echo "Generating summary..."
 awk '{
     ip = $1;
     count = $2;
@@ -51,3 +60,4 @@ sed -i "1i$header" "$output_file"
 rm "$temp_file"
 
 echo "Monthly summary created: $output_file"
+echo "Total public IPs processed: $(wc -l < "$output_file")"
