@@ -6,9 +6,7 @@
 
 **National Informatics Centre — Network Time Protocol Infrastructure**
 
-[![OS](https://img.shields.io/badge/OS-Rocky%20Linux%2010-10B981?style=flat-square&logo=rockylinux&logoColor=white)](https://rockylinux.org/)
-[![Status](https://img.shields.io/badge/Status-Operational-success?style=flat-square)](#)
-[![License](https://img.shields.io/badge/License-NIC%20%C2%A9%202026-blue?style=flat-square)](#license-and-copyright)
+`OS: Rocky Linux 10` &nbsp;|&nbsp; `Status: 🟢 Operational` &nbsp;|&nbsp; `License: NIC © 2026`
 
 Public-facing NTP endpoints: **`time.nic.in`** · **`samay1.nic.in`** · **`samay2.nic.in`** · **`samay1.nkn.in`** · **`samay2.nkn.in`**
 
